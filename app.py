@@ -1,6 +1,10 @@
 import streamlit as st
 from google import genai
 from google.genai import types
+import edge_tts
+import asyncio
+import tempfile
+import os
 
 # PAGE CONFIG
 st.set_page_config(
@@ -9,10 +13,84 @@ st.set_page_config(
     layout="wide"
 )
 
+# VOICE LIBRARY
+VOICE_LIBRARY = {
+    "English": {
+        "🇺🇸 American": {
+            "Female": ("Aria", "en-US-AriaNeural"),
+            "Male": ("Guy", "en-US-GuyNeural")
+        },
+        "🇬🇧 British": {
+            "Female": ("Sonia", "en-GB-SoniaNeural"),
+            "Male": ("Ryan", "en-GB-RyanNeural")
+        }
+    },
+    "Bahasa Indonesia": {
+        "Default": {
+            "Female": ("Gadis", "id-ID-GadisNeural"),
+            "Male": ("Ardi", "id-ID-ArdiNeural")
+        }
+    },
+    "Japanese": {
+        "Default": {
+            "Female": ("Nanami", "ja-JP-NanamiNeural"),
+            "Male": ("Keita", "ja-JP-KeitaNeural")
+        }
+    },
+    "German": {
+        "Default": {
+            "Female": ("Katja", "de-DE-KatjaNeural"),
+            "Male": ("Conrad", "de-DE-ConradNeural")
+        }
+    },
+    "French": {
+        "Default": {
+            "Female": ("Denise", "fr-FR-DeniseNeural"),
+            "Male": ("Henri", "fr-FR-HenriNeural")
+        }
+    },
+    "Spanish": {
+        "Default": {
+            "Female": ("Elvira", "es-ES-ElviraNeural"),
+            "Male": ("Alvaro", "es-ES-AlvaroNeural")
+        }
+    },
+    "Portuguese": {
+        "Default": {
+            "Female": ("Francisca", "pt-BR-FranciscaNeural"),
+            "Male": ("Antonio", "pt-BR-AntonioNeural")
+        }
+    },
+    "Arabic": {
+        "Default": {
+            "Female": ("Salma", "ar-EG-SalmaNeural"),
+            "Male": ("Shakir", "ar-EG-ShakirNeural")
+        }
+    },
+    "Korean": {
+        "Default": {
+            "Female": ("SunHi", "ko-KR-SunHiNeural"),
+            "Male": ("InJoon", "ko-KR-InJoonNeural")
+        }
+    },
+    "Chinese": {
+        "Default": {
+            "Female": ("Xiaoxiao", "zh-CN-XiaoxiaoNeural"),
+            "Male": ("Yunxi", "zh-CN-YunxiNeural")
+        }
+    }
+}
+
+# SESSION STATE
+if "generated_script" not in st.session_state:
+    st.session_state.generated_script = ""
+
+if "audio_data" not in st.session_state:
+    st.session_state.audio_data = None
+
 # HEADER
 st.title("🎬 AI Creator Studio")
 st.caption("Your Personal AI YouTube Automation Platform")
-
 st.divider()
 
 # CONTENT SETTINGS
@@ -29,18 +107,7 @@ countries = [
     "🇧🇷 Brazil"
 ]
 
-languages = [
-    "English",
-    "Bahasa Indonesia",
-    "Japanese",
-    "German",
-    "French",
-    "Spanish",
-    "Portuguese",
-    "Arabic",
-    "Korean",
-    "Chinese"
-]
+languages = list(VOICE_LIBRARY.keys())
 
 country = st.selectbox(
     "Target Negara",
@@ -93,24 +160,20 @@ st.header("🚀 AI Script Generator")
 
 topic = st.text_input(
     "Enter Your Video Topic",
-    placeholder="Example: The mysterious hotel room  room 404"
+    placeholder="Example: The mysterious hotel room 404"
 )
 
-generate = st.button(
+if st.button(
     "✨ Generate AI Script",
     type="primary",
     use_container_width=True
-)
-
-if generate:
-
+):
     if not topic.strip():
         st.warning("Please enter a video topic first.")
 
     else:
         try:
             api_key = st.secrets["GEMINI_API_KEY"]
-
             client = genai.Client(api_key=api_key)
 
             selected_text = (
@@ -124,8 +187,6 @@ You are a professional YouTube scriptwriter.
 
 Create an engaging and original YouTube video script.
 
-VIDEO SETTINGS:
-
 Target country: {country}
 Content language: {content_language}
 On-screen text language: {selected_text}
@@ -135,58 +196,39 @@ Duration: {duration}
 Topic: {topic}
 
 INSTRUCTIONS:
-
-1. Write the entire narration in {content_language}.
-2. Make the content suitable for audiences in the target country.
+1. Write narration in {content_language}.
+2. Make content suitable for the target country.
 3. Create a powerful opening hook.
-4. Make the story engaging and maintain audience retention.
+4. Maintain audience retention.
 5. Divide the script into clear scenes.
-6. Include visual suggestions for every scene.
-7. Include on-screen subtitle suggestions in {selected_text}.
-8. Add a natural ending and call to action.
-9. Match the requested video duration.
-10. Avoid unnecessary introductions.
+6. Include visual suggestions.
+7. Include on-screen text in {selected_text}.
+8. Add an ending and call to action.
+9. Match the requested duration.
+10. Do not invent historical or factual claims.
+11. Make fictional horror stories original.
 
-For history and factual content, do not invent facts.
-For fictional horror stories, create original fictional stories.
+IMPORTANT:
+At the end, include a separate section named
+VOICEOVER SCRIPT.
 
-OUTPUT FORMAT:
+This section must contain ONLY spoken narration.
+Do not include visual suggestions, scene directions,
+headings, subtitles, hashtags or production notes
+inside the VOICEOVER SCRIPT section.
 
+OUTPUT:
 TITLE:
-Create an attractive YouTube title.
-
 HOOK:
-Write a powerful opening.
-
-SCENE 1:
-Narration:
-Visual suggestion:
-On-screen text:
-
-SCENE 2:
-Narration:
-Visual suggestion:
-On-screen text:
-
-Continue scenes as needed.
-
+SCENES:
 ENDING:
-Write the conclusion.
-
 CALL TO ACTION:
-Write a short audience engagement prompt.
-
 YOUTUBE DESCRIPTION:
-Write a suitable video description.
-
 HASHTAGS:
-Provide relevant hashtags.
+VOICEOVER SCRIPT:
 """
 
-            with st.spinner(
-                "AI is creating your script. Please wait..."
-            ):
-
+            with st.spinner("Gemini is writing your script..."):
                 response = client.models.generate_content(
                     model="gemini-3.1-flash-lite",
                     contents=prompt,
@@ -197,34 +239,140 @@ Provide relevant hashtags.
                 )
 
             if response.text:
-                st.success("Your AI script has been generated!")
-
-                st.markdown("## 📝 Generated Script")
-
-                st.markdown(response.text)
-
-                st.download_button(
-                    label="📥 Download Script",
-                    data=response.text,
-                    file_name="ai_creator_script.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-            else:
-                st.error("AI returned an empty response. Please try again.")
+                st.session_state.generated_script = response.text
+                st.session_state.audio_data = None
+                st.success("AI script generated!")
 
         except KeyError:
-            st.error(
-                "Gemini API Key not found. "
-                "Please check Streamlit Secrets."
-            )
+            st.error("GEMINI_API_KEY is missing in Streamlit Secrets.")
 
         except Exception as e:
-            st.error(
-                "Something went wrong while generating the script."
-            )
+            st.error("Script generation failed.")
             st.caption(str(e))
 
-st.divider()
+# DISPLAY GENERATED SCRIPT
+if st.session_state.generated_script:
 
-st.caption("AI Creator Studio | Version 0.2")
+    st.divider()
+    st.header("📝 Generated Script")
+
+    st.markdown(st.session_state.generated_script)
+
+    st.download_button(
+        "📥 Download Full Script",
+        data=st.session_state.generated_script,
+        file_name="ai_creator_script.txt",
+        mime="text/plain"
+    )
+
+    # VOICE GENERATOR
+    st.divider()
+    st.header("🎙️ AI Voice Generator")
+
+    st.caption(
+        "Turn your AI script into natural-sounding narration."
+    )
+
+    voice_script = st.text_area(
+        "Voiceover Text",
+        value=st.session_state.generated_script,
+        height=250,
+        help="Edit this text to keep only the narration."
+    )
+
+    voice_settings = VOICE_LIBRARY[content_language]
+
+    if content_language == "English":
+        accent = st.selectbox(
+            "Voice Accent",
+            list(voice_settings.keys()),
+            index=0
+        )
+    else:
+        accent = "Default"
+
+    gender = st.radio(
+        "Voice Gender",
+        ["Female", "Male"],
+        horizontal=True
+    )
+
+    voice_name, voice_id = voice_settings[accent][gender]
+
+    st.caption(f"Selected voice: {voice_name}")
+
+    speed = st.slider(
+        "Voice Speed",
+        min_value=75,
+        max_value=125,
+        value=100,
+        step=5,
+        format="%d%%"
+    )
+
+    if st.button(
+        "🎙️ Generate Voice MP3",
+        type="primary",
+        use_container_width=True
+    ):
+
+        if not voice_script.strip():
+            st.warning("Please enter narration text.")
+
+        else:
+            try:
+                async def create_voice():
+                    communicate = edge_tts.Communicate(
+                        voice_script,
+                        voice_id,
+                        rate=f"{speed - 100:+d}%"
+                    )
+
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".mp3",
+                        delete=False
+                    ) as audio_file:
+                        audio_path = audio_file.name
+
+                    try:
+                        await communicate.save(audio_path)
+
+                        with open(audio_path, "rb") as f:
+                            return f.read()
+
+                    finally:
+                        if os.path.exists(audio_path):
+                            os.remove(audio_path)
+
+                with st.spinner(
+                    "Creating your voice narration..."
+                ):
+                    st.session_state.audio_data = asyncio.run(
+                        create_voice()
+                    )
+
+                st.success("Voice narration created successfully!")
+
+            except Exception as e:
+                st.session_state.audio_data = None
+                st.error("Voice generation failed.")
+                st.caption(str(e))
+
+    if st.session_state.audio_data:
+        st.subheader("🎧 Audio Preview")
+
+        st.audio(
+            st.session_state.audio_data,
+            format="audio/mp3"
+        )
+
+        st.download_button(
+            "📥 Download MP3",
+            data=st.session_state.audio_data,
+            file_name="ai_creator_voice.mp3",
+            mime="audio/mpeg",
+            use_container_width=True
+        )
+
+st.divider()
+st.caption("AI Creator Studio | Version 0.3")
