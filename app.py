@@ -20,8 +20,164 @@ st.set_page_config(
     layout="wide",
 )
 
+
+# ---------------------------------------------------------
+# DESIGN SYSTEM: CLEAN & ELEGANT
+# ---------------------------------------------------------
+
+st.markdown(
+    """
+    <style>
+    /* Typography and page canvas */
+    html, body, [class*="css"], [data-testid="stAppViewContainer"] {
+        font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont,
+                     sans-serif;
+    }
+    [data-testid="stAppViewContainer"] {
+        background: #F6F7F9;
+        color: #18212F;
+    }
+    [data-testid="stHeader"] {
+        background: rgba(246, 247, 249, 0.88);
+    }
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1180px;
+        padding-top: 2.1rem;
+        padding-bottom: 3rem;
+    }
+
+    /* Headings */
+    h1, h2, h3 {
+        color: #172235 !important;
+        letter-spacing: -0.035em;
+        font-weight: 700 !important;
+    }
+    h1 {
+        font-size: clamp(1.9rem, 3vw, 2.55rem) !important;
+    }
+    h2 { font-size: 1.55rem !important; }
+    h3 { font-size: 1.18rem !important; }
+    p, label, .stCaption {
+        color: #526071;
+    }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: #FFFFFF;
+        border-right: 1px solid #E7EAF0;
+    }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
+        color: #172235 !important;
+    }
+
+    /* Inputs */
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    [data-testid="stNumberInput"] input {
+        background: #FFFFFF !important;
+        border: 1px solid #DCE2EA !important;
+        border-radius: 10px !important;
+        color: #18212F !important;
+    }
+    [data-testid="stTextInput"] input:focus,
+    [data-testid="stTextArea"] textarea:focus {
+        border-color: #6485A8 !important;
+        box-shadow: 0 0 0 2px rgba(100, 133, 168, 0.13) !important;
+    }
+
+    /* Buttons */
+    .stButton > button, .stDownloadButton > button {
+        border-radius: 10px !important;
+        border: 1px solid #D9E0E9 !important;
+        font-weight: 600 !important;
+        min-height: 2.65rem;
+        transition: all 140ms ease;
+    }
+    .stButton > button[kind="primary"] {
+        background: #263D57 !important;
+        color: #FFFFFF !important;
+        border-color: #263D57 !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: #1D3046 !important;
+        border-color: #1D3046 !important;
+        transform: translateY(-1px);
+    }
+    .stDownloadButton > button {
+        background: #FFFFFF !important;
+        color: #263D57 !important;
+    }
+
+    /* Tabs */
+    [data-testid="stTabs"] [role="tablist"] {
+        gap: 0.45rem;
+        border-bottom: 1px solid #E2E7EE;
+    }
+    [data-testid="stTabs"] button[role="tab"] {
+        border-radius: 9px 9px 0 0;
+        color: #657286;
+        font-weight: 600;
+        padding: 0.7rem 1rem;
+    }
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        color: #263D57 !important;
+        border-bottom: 2px solid #526F91 !important;
+    }
+
+    /* Containers, separators and media */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #E4E8EF !important;
+        border-radius: 14px !important;
+    }
+    hr {
+        border-color: #E4E8EF !important;
+    }
+    [data-testid="stAlert"] {
+        border-radius: 11px;
+    }
+    [data-testid="stAudio"] {
+        border-radius: 12px;
+    }
+
+    /* Sliders and radio controls */
+    [data-testid="stSlider"] [role="slider"] {
+        background: #526F91;
+    }
+    [data-testid="stRadio"] label,
+    [data-testid="stCheckbox"] label {
+        color: #354256;
+    }
+
+    /* Keep code and generated text comfortable to read */
+    textarea {
+        line-height: 1.6 !important;
+    }
+    [data-testid="stMarkdownContainer"] code {
+        border-radius: 5px;
+    }
+
+    /* Mobile spacing */
+    @media (max-width: 768px) {
+        [data-testid="stMainBlockContainer"] {
+            padding: 1.2rem 1rem 2rem;
+        }
+        h1 { font-size: 1.8rem !important; }
+        [data-testid="stTabs"] button[role="tab"] {
+            padding: 0.55rem 0.55rem;
+            font-size: 0.86rem;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 st.title("🎬 AI Creator Studio")
-st.caption("Buat naskah video YouTube dan voiceover dengan bantuan AI.")
+st.caption("Buat naskah, voiceover, dan rencana visual video YouTube dengan bantuan AI.")
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"
 
@@ -114,6 +270,7 @@ DEFAULTS = {
     "audio_filename": "voiceover.mp3",
     "eleven_voices": [],
     "eleven_models": [],
+    "visual_plan": "",
 }
 
 for key, value in DEFAULTS.items():
@@ -408,7 +565,7 @@ with st.sidebar:
 # TAB UTAMA
 # ---------------------------------------------------------
 
-tab_script, tab_voice = st.tabs(["📝 Script Generator", "🎙️ Voice Generator"])
+tab_script, tab_voice, tab_visual = st.tabs(["📝 Script Generator", "🎙️ Voice Generator", "🎬 Visual Studio"])
 
 with tab_script:
     st.subheader("Buat Naskah Video")
@@ -626,11 +783,151 @@ with tab_voice:
         )
 
 
+
+# ---------------------------------------------------------
+# VISUAL STUDIO: SCENE PLANNER & VISUAL PROMPTS
+# ---------------------------------------------------------
+
+VISUAL_STYLES = [
+    "Auto (AI memilih gaya per adegan)",
+    "Realistic Cinematic",
+    "Kinetic Typography",
+    "Documentary Infographic",
+    "3D Animation",
+    "2D Animation",
+    "Hybrid Cinematic + Motion Graphics",
+]
+
+
+def build_visual_prompt(script: str, video_format: str, duration: str,
+                        target_country: str, text_language: str,
+                        visual_style: str) -> str:
+    return f"""
+Kamu adalah sutradara video, storyboard artist, dan motion designer profesional.
+Buat rencana produksi visual berdasarkan naskah berikut.
+
+FORMAT VIDEO: {video_format}
+DURASI TARGET: {duration}
+TARGET PENONTON: {target_country}
+BAHASA TEKS DI LAYAR: {text_language}
+GAYA VISUAL: {visual_style}
+
+ATURAN:
+- Pecah naskah menjadi adegan yang masuk akal dan mengikuti alur narasi.
+- Untuk setiap adegan, tulis perkiraan durasi, bagian narasi yang dicakup,
+  deskripsi visual, gerakan kamera/animasi, teks layar, dan prompt visual.
+- Jika gaya Auto dipilih, tentukan gaya terbaik untuk setiap adegan.
+- Jika Hybrid dipilih, kombinasikan footage realistis dan motion graphics
+  secara proporsional; jangan memaksakan keduanya di setiap adegan.
+- Prompt footage harus menjelaskan subjek, lokasi, aksi, pencahayaan,
+  komposisi, gerakan kamera, suasana, dan detail sinematik.
+- Motion graphics harus menjelaskan elemen, layout, gerakan, timing,
+  tipografi, dan transisi.
+- Hindari teks acak/berantakan di dalam hasil generasi video. Teks layar
+  sebaiknya ditambahkan saat tahap editing.
+- Jaga konsistensi karakter, kostum, lokasi, warna, dan periode sejarah.
+- Jangan mengarang fakta baru yang tidak ada dalam naskah.
+- Untuk video Shorts gunakan komposisi vertikal 9:16.
+- Untuk video Long-form gunakan komposisi horizontal 16:9.
+
+FORMAT OUTPUT:
+SCENE 01
+Durasi:
+Narasi:
+Tipe visual: (Realistic / Kinetic Typography / Infographic / 3D / 2D)
+Deskripsi adegan:
+Gerakan kamera / animasi:
+Teks layar:
+Prompt produksi visual:
+Transisi:
+
+Ulangi format tersebut sampai seluruh naskah tercakup.
+Di akhir, berikan CATATAN KONSISTENSI VISUAL dan SARAN EDITING.
+
+NASKAH:
+{script}
+"""
+
+
+with tab_visual:
+    st.subheader("🎬 Visual Studio")
+    st.caption(
+        "Rancang adegan, footage realistis, dan motion graphics dari naskah. "
+        "Modul ini menyiapkan storyboard dan prompt; pembuatan klip video "
+        "otomatis akan dihubungkan ke provider video AI pada tahap berikutnya."
+    )
+
+    visual_style = st.selectbox("Gaya Visual", VISUAL_STYLES, key="visual_style")
+    visual_source = st.radio(
+        "Sumber Naskah",
+        ["Gunakan naskah yang sudah dibuat", "Tempel naskah sendiri"],
+        horizontal=True,
+    )
+
+    if visual_source == "Tempel naskah sendiri":
+        visual_script = st.text_area(
+            "Naskah untuk storyboard",
+            height=220,
+            key="custom_visual_script",
+        )
+    else:
+        visual_script = st.session_state.generated_script
+        if visual_script:
+            st.text_area(
+                "Naskah aktif",
+                value=visual_script,
+                height=180,
+                disabled=True,
+            )
+        else:
+            st.info(
+                "Generate naskah terlebih dahulu, atau pilih opsi tempel naskah sendiri."
+            )
+
+    if st.button(
+        "✨ Buat Storyboard & Prompt Visual",
+        type="primary",
+        use_container_width=True,
+    ):
+        if not visual_script.strip():
+            st.warning(
+                "Belum ada naskah. Generate atau tempel naskah terlebih dahulu."
+            )
+        else:
+            visual_prompt = build_visual_prompt(
+                script=visual_script.strip(),
+                video_format=video_format,
+                duration=duration,
+                target_country=target_country,
+                text_language=text_language,
+                visual_style=visual_style,
+            )
+            with st.spinner(
+                "Gemini sedang menyusun storyboard dan prompt visual..."
+            ):
+                try:
+                    st.session_state.visual_plan = generate_script(visual_prompt)
+                    st.success("Storyboard dan prompt visual berhasil dibuat!")
+                except Exception as error:
+                    st.error(f"Gagal membuat storyboard: {error}")
+
+    if st.session_state.visual_plan:
+        st.markdown("### Hasil Storyboard & Prompt Visual")
+        st.text_area("Edit hasil visual plan", key="visual_plan", height=520)
+        st.download_button(
+            "⬇️ Download Storyboard (.txt)",
+            data=st.session_state.visual_plan,
+            file_name="ai_creator_studio_storyboard.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+
+
 # ---------------------------------------------------------
 # FOOTER
 # ---------------------------------------------------------
 
 st.divider()
 st.caption(
-    "AI Creator Studio v0.4 • Gemini Script Generator • Edge TTS • ElevenLabs"
-)
+    "AI Creator Studio v0.6 • Gemini Script Generator • Edge TTS • ElevenLabs • Visual Studio"
