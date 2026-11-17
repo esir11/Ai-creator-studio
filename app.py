@@ -271,6 +271,11 @@ DEFAULTS = {
     "eleven_voices": [],
     "eleven_models": [],
     "visual_plan": "",
+    "kling_task_id": "",
+    "kling_status": "",
+    "kling_video_url": "",
+    "kling_task_message": "",
+    "kling_prompt": "",
 }
 
 for key, value in DEFAULTS.items():
@@ -499,6 +504,112 @@ def generate_elevenlabs_audio(
 
 
 # ---------------------------------------------------------
+# KLING AI VIDEO GENERATOR
+# ---------------------------------------------------------
+
+KLING_API_BASE = "https://api-singapore.klingai.com"
+
+
+def kling_headers():
+    """Header autentikasi Kling API."""
+    api_key = get_secret("KLING_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "KLING_API_KEY belum ditemukan. Tambahkan ke "
+            ".streamlit/secrets.toml."
+        )
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def kling_create_video(prompt: str, duration: int, aspect_ratio: str,
+                       resolution: str, model: str = "kling-4.0") -> dict:
+    """Kirim task text-to-video ke Kling API."""
+    payload = {
+        "prompt": prompt,
+        "settings": {
+            "resolution": resolution,
+            "aspect_ratio": aspect_ratio,
+            "duration": duration,
+            "audio": "off",
+            "multi_shot": False,
+        },
+        "options": {
+            "watermark_info": {
+                "enabled": False
+            }
+        },
+    }
+
+    response = requests.post(
+        f"{KLING_API_BASE}/text-to-video/{model}",
+        headers=kling_headers(),
+        json=payload,
+        timeout=60,
+    )
+
+    if not response.ok:
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        raise RuntimeError(
+            f"Kling API error ({response.status_code}): {detail}"
+        )
+
+    result = response.json()
+    if result.get("code") not in (None, 0):
+        raise RuntimeError(
+            f"Kling menolak permintaan: {result.get('message', result)}"
+        )
+
+    task_data = result.get("data") or {}
+    task_id = task_data.get("id")
+    if not task_id:
+        raise RuntimeError(f"Task ID tidak ditemukan pada respons Kling: {result}")
+
+    return task_data
+
+
+def kling_get_task(task_id: str) -> dict:
+    """Periksa status task Kling berdasarkan task ID."""
+    response = requests.get(
+        f"{KLING_API_BASE}/tasks",
+        headers=kling_headers(),
+        params={"task_ids": task_id},
+        timeout=45,
+    )
+
+    if not response.ok:
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        raise RuntimeError(
+            f"Gagal memeriksa task Kling ({response.status_code}): {detail}"
+        )
+
+    result = response.json()
+    if result.get("code") not in (None, 0):
+        raise RuntimeError(
+            f"Kling mengembalikan error: {result.get('message', result)}"
+        )
+
+    task_data = result.get("data") or []
+    if isinstance(task_data, dict):
+        task_list = task_data.get("result") or [task_data]
+    else:
+        task_list = task_data
+
+    if not task_list:
+        raise RuntimeError("Task tidak ditemukan. Periksa kembali task ID.")
+
+    return task_list[0]
+
+
+# ---------------------------------------------------------
 # SIDEBAR: PENGATURAN KONTEN
 # ---------------------------------------------------------
 
@@ -565,7 +676,7 @@ with st.sidebar:
 # TAB UTAMA
 # ---------------------------------------------------------
 
-tab_script, tab_voice, tab_visual = st.tabs(["📝 Script Generator", "🎙️ Voice Generator", "🎬 Visual Studio"])
+tab_script, tab_voice, tab_visual, tab_video = st.tabs(["📝 Script Generator", "🎙️ Voice Generator", "🎬 Visual Studio", "🎥 AI Video Generator"])
 
 with tab_script:
     st.subheader("Buat Naskah Video")
@@ -785,6 +896,173 @@ with tab_voice:
 
 
 # ---------------------------------------------------------
+# AI VIDEO GENERATOR: KLING
+# ---------------------------------------------------------
+
+with tab_video:
+    st.subheader("🎥 AI Video Generator")
+    st.caption(
+        "Generate klip video langsung dari prompt menggunakan Kling AI. "
+        "Versi awal ini membuat satu klip per task; fitur batch storyboard "
+        "dan penyatuan video akan dikembangkan setelah koneksi pertama berhasil."
+    )
+
+    kling_key = get_secret("KLING_API_KEY")
+    if kling_key:
+        st.success("Kling API key terdeteksi. Key tidak ditampilkan.")
+    else:
+        st.warning(
+            "Kling API key belum dipasang. Tambahkan KLING_API_KEY ke "
+            ".streamlit/secrets.toml, lalu restart aplikasi."
+        )
+
+    st.markdown("### 1. Prompt Video")
+    default_kling_prompt = st.session_state.get("kling_prompt", "")
+    if not default_kling_prompt and st.session_state.visual_plan:
+        default_kling_prompt = (
+            "Ambil satu adegan terbaik dari storyboard berikut dan buat "
+            "footage sinematik yang realistis. Jangan tampilkan teks, subtitle, "
+            "logo, atau watermark.\n\n" + st.session_state.visual_plan[:2500]
+        )
+
+    kling_prompt = st.text_area(
+        "Deskripsikan video yang ingin dibuat",
+        value=default_kling_prompt,
+        height=180,
+        key="kling_prompt_input",
+        placeholder=(
+            "Contoh: A cinematic realistic shot of an abandoned mansion "
+            "in a foggy forest at midnight, slow dolly-in camera movement, "
+            "moonlight, eerie atmosphere, highly detailed, no text."
+        ),
+        help="Tulis prompt visual dalam bahasa Inggris untuk hasil yang lebih terarah.",
+    )
+
+    st.markdown("### 2. Pengaturan Klip")
+    video_col1, video_col2, video_col3 = st.columns(3)
+    with video_col1:
+        kling_ratio_label = st.selectbox(
+            "Rasio Video",
+            ["16:9 — YouTube Long-form", "9:16 — YouTube Shorts", "1:1 — Square"],
+            index=0 if video_format == "YouTube Long-form" else 1,
+        )
+    with video_col2:
+        kling_duration = st.selectbox(
+            "Durasi Klip",
+            [5, 10, 15, 20, 25, 30],
+            index=1,
+            format_func=lambda value: f"{value} detik",
+        )
+    with video_col3:
+        kling_resolution = st.selectbox(
+            "Resolusi",
+            ["720p", "1080p"],
+            index=0,
+            help="Resolusi lebih tinggi dapat menggunakan lebih banyak kredit.",
+        )
+
+    kling_ratio = kling_ratio_label.split(" — ")[0]
+
+    st.info(
+        "Catatan biaya: setiap generate menggunakan kredit/API balance Kling. "
+        "Cek harga dan saldo di dashboard Kling sebelum membuat banyak klip."
+    )
+
+    generate_col, refresh_col = st.columns([2, 1])
+    with generate_col:
+        create_kling_clicked = st.button(
+            "🚀 Generate Video dengan Kling",
+            type="primary",
+            use_container_width=True,
+            disabled=not bool(kling_key),
+        )
+    with refresh_col:
+        refresh_kling_clicked = st.button(
+            "🔄 Cek Status",
+            use_container_width=True,
+            disabled=not bool(kling_key and st.session_state.kling_task_id),
+        )
+
+    if create_kling_clicked:
+        if not kling_prompt.strip():
+            st.warning("Isi prompt video terlebih dahulu.")
+        elif len(kling_prompt.strip()) > 2500:
+            st.warning("Prompt terlalu panjang. Ringkas prompt menjadi maksimal 2.500 karakter.")
+        else:
+            try:
+                with st.spinner("Mengirim permintaan ke Kling AI..."):
+                    task = kling_create_video(
+                        prompt=kling_prompt.strip(),
+                        duration=int(kling_duration),
+                        aspect_ratio=kling_ratio,
+                        resolution=kling_resolution,
+                    )
+                st.session_state.kling_task_id = task.get("id", "")
+                st.session_state.kling_status = task.get("status", "submitted")
+                st.session_state.kling_video_url = ""
+                st.session_state.kling_task_message = ""
+                st.session_state.kling_prompt = kling_prompt.strip()
+                st.success(
+                    "Task berhasil dikirim ke Kling! Proses video berjalan di server Kling."
+                )
+            except Exception as error:
+                st.error(f"Gagal mengirim task ke Kling: {error}")
+
+    if refresh_kling_clicked:
+        try:
+            with st.spinner("Memeriksa status video di Kling..."):
+                task = kling_get_task(st.session_state.kling_task_id)
+
+            status = str(task.get("status", "unknown")).lower()
+            st.session_state.kling_status = status
+            st.session_state.kling_task_message = task.get("message", "") or ""
+
+            outputs = task.get("outputs") or []
+            video_url = ""
+            for output in outputs:
+                if output.get("type") == "video" and output.get("url"):
+                    video_url = output["url"]
+                    break
+
+            if status in ("succeeded", "completed") and video_url:
+                st.session_state.kling_video_url = video_url
+                st.success("Video berhasil dibuat!")
+            elif status == "failed":
+                st.error(
+                    "Kling gagal membuat video. "
+                    + (st.session_state.kling_task_message or "Periksa prompt dan saldo API.")
+                )
+            else:
+                st.info(
+                    f"Status saat ini: {status}. Tunggu sebentar lalu tekan Cek Status lagi."
+                )
+        except Exception as error:
+            st.error(f"Gagal memeriksa status task: {error}")
+
+    if st.session_state.kling_task_id:
+        st.markdown("### 3. Status Generasi")
+        st.code(st.session_state.kling_task_id, language=None)
+        st.write(f"**Status:** {st.session_state.kling_status or 'submitted'}")
+        st.caption(
+            "Kling memproses video secara asynchronous. Tekan tombol Cek Status "
+            "untuk memperbarui hasil; jangan tekan Generate berulang kali untuk task yang sama."
+        )
+
+    if st.session_state.kling_video_url:
+        st.markdown("### 4. Preview Hasil Video")
+        st.video(st.session_state.kling_video_url)
+        st.link_button(
+            "Buka / Unduh Video dari Kling",
+            st.session_state.kling_video_url,
+            use_container_width=True,
+        )
+        st.caption(
+            "Simpan hasil video ke perangkat atau penyimpanan pribadi. "
+            "URL hasil Kling dapat memiliki masa retensi terbatas."
+        )
+
+
+# ---------------------------------------------------------
 # VISUAL STUDIO: SCENE PLANNER & VISUAL PROMPTS
 # ---------------------------------------------------------
 
@@ -930,5 +1208,5 @@ with tab_visual:
 
 st.divider()
 st.caption(
-    "AI Creator Studio v0.6 • Gemini Script Generator • Edge TTS • ElevenLabs • Visual Studio"
+    "AI Creator Studio v0.7"
 )
