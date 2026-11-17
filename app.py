@@ -931,3 +931,4 @@ with tab_visual:
 st.divider()
 st.caption(
     "AI Creator Studio v0.6 • Gemini Script Generator • Edge TTS • ElevenLabs • Visual Studio"
+)
