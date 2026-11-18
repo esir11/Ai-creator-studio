@@ -8,6 +8,7 @@ import requests
 import streamlit as st
 import edge_tts
 from google import genai
+from google.genai import types
 
 
 # ---------------------------------------------------------
@@ -391,6 +392,36 @@ def generate_script(prompt: str) -> str:
     return response.text.strip()
 
 
+def stream_visual_plan(prompt: str):
+    """Generate storyboard secara streaming agar hasil terlihat bertahap."""
+    client = get_gemini_client()
+    if client is None:
+        raise ValueError(
+            "GEMINI_API_KEY belum ditemukan. Periksa Streamlit Secrets."
+        )
+
+    response_stream = client.models.generate_content_stream(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.4,
+            max_output_tokens=6000,
+        ),
+    )
+
+    received_text = False
+    for chunk in response_stream:
+        chunk_text = getattr(chunk, "text", None)
+        if chunk_text:
+            received_text = True
+            yield chunk_text
+
+    if not received_text:
+        raise RuntimeError(
+            "Gemini tidak mengembalikan teks storyboard. Coba lagi dengan naskah lebih pendek."
+        )
+
+
 # ---------------------------------------------------------
 # EDGE TTS
 # ---------------------------------------------------------
@@ -530,11 +561,11 @@ def kling_create_video(prompt: str, duration: int, aspect_ratio: str,
     payload = {
         "prompt": prompt,
         "settings": {
+            # Kling 4.0 hanya menerima resolution, aspect_ratio, dan duration.
+            # Parameter audio dan multi_shot tidak didukung pada model ini.
             "resolution": resolution,
             "aspect_ratio": aspect_ratio,
             "duration": duration,
-            "audio": "off",
-            "multi_shot": False,
         },
         "options": {
             "watermark_info": {
@@ -1092,19 +1123,22 @@ GAYA VISUAL: {visual_style}
 
 ATURAN:
 - Pecah naskah menjadi adegan yang masuk akal dan mengikuti alur narasi.
+- Jaga hasil tetap ringkas dan siap produksi; jangan mengulang isi naskah.
+- Untuk Shorts buat sekitar 6-8 adegan; untuk Long-form buat sekitar 10-14 adegan.
 - Untuk setiap adegan, tulis perkiraan durasi, bagian narasi yang dicakup,
   deskripsi visual, gerakan kamera/animasi, teks layar, dan prompt visual.
 - Jika gaya Auto dipilih, tentukan gaya terbaik untuk setiap adegan.
 - Jika Hybrid dipilih, kombinasikan footage realistis dan motion graphics
   secara proporsional; jangan memaksakan keduanya di setiap adegan.
-- Prompt footage harus menjelaskan subjek, lokasi, aksi, pencahayaan,
-  komposisi, gerakan kamera, suasana, dan detail sinematik.
+- Prompt footage cukup 1-3 kalimat padat, tetapi menjelaskan subjek, lokasi,
+  aksi, pencahayaan, komposisi, gerakan kamera, suasana, dan detail sinematik.
 - Motion graphics harus menjelaskan elemen, layout, gerakan, timing,
   tipografi, dan transisi.
 - Hindari teks acak/berantakan di dalam hasil generasi video. Teks layar
   sebaiknya ditambahkan saat tahap editing.
 - Jaga konsistensi karakter, kostum, lokasi, warna, dan periode sejarah.
 - Jangan mengarang fakta baru yang tidak ada dalam naskah.
+- Hindari penjelasan pembuka/penutup yang panjang di luar format scene.
 - Untuk video Shorts gunakan komposisi vertikal 9:16.
 - Untuk video Long-form gunakan komposisi horizontal 16:9.
 
@@ -1180,14 +1214,19 @@ with tab_visual:
                 text_language=text_language,
                 visual_style=visual_style,
             )
-            with st.spinner(
-                "Gemini sedang menyusun storyboard dan prompt visual..."
-            ):
-                try:
-                    st.session_state.visual_plan = generate_script(visual_prompt)
+            st.session_state.visual_plan = ""
+            st.markdown("### Hasil Storyboard (muncul bertahap)")
+            try:
+                streamed_result = st.write_stream(
+                    stream_visual_plan(visual_prompt)
+                )
+                if isinstance(streamed_result, str) and streamed_result.strip():
+                    st.session_state.visual_plan = streamed_result.strip()
                     st.success("Storyboard dan prompt visual berhasil dibuat!")
-                except Exception as error:
-                    st.error(f"Gagal membuat storyboard: {error}")
+                else:
+                    st.error("Gemini belum mengirim hasil. Coba lagi dengan naskah lebih pendek.")
+            except Exception as error:
+                st.error(f"Gagal membuat storyboard: {error}")
 
     if st.session_state.visual_plan:
         st.markdown("### Hasil Storyboard & Prompt Visual")
@@ -1208,5 +1247,5 @@ with tab_visual:
 
 st.divider()
 st.caption(
-    "AI Creator Studio v0.7"
+    "AI Creator Studio v0.7.2 • Kling 4.0 payload fix • Gemini streaming storyboard • Edge TTS • ElevenLabs • Kling AI Video"
 )
